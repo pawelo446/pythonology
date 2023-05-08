@@ -1,0 +1,17 @@
+Algorithm,File Name,Limit,Average Time
+merge_sort_multithreaded,liczby.txt,100,0.0010383129119873047
+comb_sort,liczby.txt,100,0.0003322124481201172
+radix_sort,liczby.txt,100,0.0002159595489501953
+bubble_sort,liczby.txt,100,0.00048146247863769533
+merge_sort_multithreaded,liczby.txt,1000,0.002776336669921875
+comb_sort,liczby.txt,1000,0.002702760696411133
+radix_sort,liczby.txt,1000,0.0017457008361816406
+bubble_sort,liczby.txt,1000,0.02779541015625
+merge_sort_multithreaded,liczby.txt,10000,0.022656583786010744
+comb_sort,liczby.txt,10000,0.03322930335998535
+radix_sort,liczby.txt,10000,0.015727949142456055
+bubble_sort,liczby.txt,10000,2.434541177749634
+merge_sort_multithreaded,liczby.txt,100000,0.19084806442260743
+comb_sort,liczby.txt,100000,0.32440500259399413
+radix_sort,liczby.txt,100000,0.11200499534606934
+bubble_sort,liczby.txt,100000,266.59031929969785

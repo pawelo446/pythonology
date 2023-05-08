@@ -1,212 +1,136 @@
 import configparser
 import csv
+import os
 import time
-import threading
+from typing import List
+import datetime
+import networkx as nx
+from networkx import is_connected
+import random
+from typing import List, Tuple
 
-def merge(low, mid, high):
-    left = a[low:mid+1]
-    right = a[mid+1:high+1]
 
-    n1 = len(left)
-    n2 = len(right)
-    i = j = 0
-    k = low
+def flatMap(l):
+    return [item for sublist in l for item in sublist]
 
-    while i < n1 and j < n2:
-        if left[i] <= right[j]:
-            a[k] = left[i]
-            i += 1
-        else:
-            a[k] = right[j]
-            j += 1
-        k += 1
 
-    while i < n1:
-        a[k] = left[i]
-        i += 1
-        k += 1
-
-    while j < n2:
-        a[k] = right[j]
-        j += 1
-        k += 1
-
-def merge_sort(low, high):
-    if low < high:
-        mid = low + (high - low) // 2
-
-        merge_sort(low, mid)
-        merge_sort(mid + 1, high)
-
-        merge(low, mid, high)
-
-def merge_sort_threaded(arr):
-    global a
-    a = arr
-
-    max_elements = len(a)
-    global part
-    part = 0
-    thread_max = 5
-
-    for i in range(thread_max):
-        t = threading.Thread(target=merge_sort, args=(part * (max_elements // 4), (part + 1) * (max_elements // 4) - 1))
-        part += 1
-        t.start()
-
-    for i in range(thread_max):
-        t.join()
-
-    merge(0, (max_elements // 2 - 1) // 2, max_elements // 2 - 1)
-    merge(max_elements // 2, max_elements // 2 + (max_elements - 1 - max_elements // 2) // 2, max_elements - 1)
-    merge(0, (max_elements - 1) // 2, max_elements - 1)
-
-    return a
-
-def read_data_file(file_name, limit):
+def krotki_read_graph_file(file_name):
     """Funkcja odczytuje dane z pliku i zwraca je w odpowiednim formacie."""
     extension = file_name.split('.')[-1]
+    if extension == 'csv':
+        with open(file_name, newline='') as csvfile:
+            data = [(int(row[0]), int(row[1]), int(row[2])) for row in csv.reader(csvfile)]
+            print(f"Dane wczytane z pliku: {data}")
+    elif extension == 'txt':
+        with open(file_name) as txtfile:
+            data = [(int(row.split(',')[0]), int(row.split(',')[1]), int(row.split(',')[2])) for row in txtfile]
+    else:
+        raise ValueError("Nieobsługiwany format pliku wejściowego.")
+    print(f"Pobrano graf z pliku {file_name}")
+    # Przekształcanie listy krawędzi w obiekt grafu
+    graph = nx.Graph()
+    graph.add_weighted_edges_from(data)
+    edge_list = [(u, v, weight["weight"]) for u, v, weight in graph.edges(data=True)]
+    return edge_list
 
+
+def read_graph_file(file_name):
+    extension = file_name.split('.')[-1]
     if extension == 'csv':
         with open(file_name, newline='') as csvfile:
             data = [list(map(int, row)) for row in csv.reader(csvfile)]
+            print(f"Dane wczytane z pliku: {data}")
     elif extension == 'txt':
         with open(file_name) as txtfile:
-            data = [list(map(int, row.split(', '))) for row in txtfile]
+            data = [list(map(int, row.split(','))) for row in txtfile]
     else:
         raise ValueError("Nieobsługiwany format pliku wejściowego.")
-    data = data[0]
-    data = data[0:limit]
-    return data
+
+    print(f"Pobrano graf z pliku {file_name}")
+    # Przekształcanie macierzy sąsiedztwa w listę krawędzi z wagami
+    n = len(data)
+    edges = [(i, j, data[i][j]) for i in range(n) for j in range(i + 1, n) if data[i][j] > 0]
+
+    # Przekształcanie listy krawędzi w obiekt grafu
+    graph = nx.Graph()
+    graph.add_weighted_edges_from(edges)
+    edge_list = [(u, v, weight["weight"]) for u, v, weight in graph.edges(data=True)]
+    return edge_list
 
 
-def save_results(results, time_elapsed, output_file_name, intput_file_name, algorithm, limit, summary_writer, repetitions):
+def run_algorithm(algorithm_name, data, repetitions) -> List[List[int]]:
+    results = []
+    if algorithm_name == 'boruvka':
+        for i in range(repetitions):
+            start_time = time.time()
+            mst = boruvka_mst(data)
+            time_elapsed = time.time() - start_time
+            results.append(mst + [time_elapsed])
+    else:
+        raise ValueError("Nieobsługiwany algorytm.")
+    return results
+
+
+def boruvka_mst(edges) -> List[List[int]]:
+    n = max([max(edge[0], edge[1]) for edge in edges]) + 1
+    graph = nx.Graph()
+    graph.add_weighted_edges_from(edges)
+    mst = nx.Graph()
+
+    while mst.number_of_edges() < n - 1:
+        cheapest_edges = [-1] * n
+
+        for u, v, weight in graph.edges.data("weight"):
+            if mst.number_of_edges() == 0 or not nx.has_path(mst, u, v):
+                if cheapest_edges[u] == -1 or cheapest_edges[u][2] > weight:
+                    cheapest_edges[u] = (u, v, weight)
+                if cheapest_edges[v] == -1 or cheapest_edges[v][2] > weight:
+                    cheapest_edges[v] = (v, u, weight)
+
+        for edge in cheapest_edges:
+            if edge != -1:
+                u, v, weight = edge
+                if not mst.has_edge(u, v):
+                    mst.add_edge(u, v, weight=weight)
+    return [(u, v, weight) for u, v, weight in mst.edges.data("weight")]
+
+
+def remove_edges(data: List[Tuple[int, int, int]], removal_percentage: int) -> List[Tuple[int, int, int]]:
+    if removal_percentage == 0:
+        return data
+    n = int(len(data) * (1 - removal_percentage / 100))
+    edges = [(i, j, weight) for i, j, weight in data]
+    edges.sort(key=lambda x: x[2])
+    removed_edges = edges[:len(edges) - n]
+    return removed_edges
+
+
+def save_results(results, time_elapsed, output_file_name, input_file_name, algorithm, step, summary_writer,
+                 repetitions, output_directory):
     """Funkcja zapisuje wyniki i czas wykonania dla każdej instancji do osobnych plików."""
     sorted_data = [result[:-1] for result in results]
     times = [result[-1] for result in results]
 
-    sorted_output_file_name = output_file_name + '_sorted.csv'
+    sorted_output_file_name = os.path.join(output_directory, output_file_name + '_mst.csv')
     with open(sorted_output_file_name, 'w', newline='') as csvfile:
         writer = csv.writer(csvfile)
-        writer.writerow([f'Algorithm: {algorithm} file name: {intput_file_name}'])
+        writer.writerow([f'Algorithm: {algorithm} file name: {input_file_name}'])
         writer.writerows(sorted_data)
 
-    time_output_file_name = output_file_name + '_time.csv'
+    time_output_file_name = os.path.join(output_directory, output_file_name + '_time.csv')
     with open(time_output_file_name, 'w', newline='') as csvfile:
         writer = csv.writer(csvfile)
-        writer.writerow([f'Algorithm: {algorithm} file name: {intput_file_name}'])
+        writer.writerow([f'Algorithm: {algorithm} file name: {input_file_name}'])
         for time in times:
             writer.writerow([time])
 
-    time_elapsed_output_file_name = output_file_name + '_time_elapsed.txt'
+    time_elapsed_output_file_name = os.path.join(output_directory, output_file_name + '_time_elapsed.txt')
     with open(time_elapsed_output_file_name, 'w') as txtfile:
         avg_time = time_elapsed / repetitions
         txtfile.write(
-            f'Time: {time_elapsed} (s), Average Time: {avg_time} (s) for algorithm: {algorithm} file name: {intput_file_name} limit: {limit}')
-        summary_writer.writerow([algorithm, intput_file_name, limit, avg_time])
-
-
-def run_algorithm(algorithm_name, data, repetitions, total_tasks):
-    """Funkcja wykonuje badany algorytm i zwraca wyniki."""
-    results = []
-    completed_tasks = 0
-    for i in range(repetitions):
-        start_time = time.time()
-        if algorithm_name == 'bubble_sort':
-            sorted_data = bubble_sort(data)
-        elif algorithm_name == 'comb_sort':
-            sorted_data = comb_sort(data)
-        elif algorithm_name == 'radix_sort':
-            sorted_data = radix_sort(data)
-        elif algorithm_name == 'merge_sort_multithreaded':
-            sorted_data = merge_sort_threaded(data)
-        else:
-            raise ValueError("Nieobsługiwany algorytm.")
-        time_elapsed = time.time() - start_time
-        results.append(sorted_data + [time_elapsed])
-
-        completed_tasks += 1
-        print_progress_bar(completed_tasks, total_tasks, prefix=f'Processing {algorithm_name}', suffix='Complete', length=50)
-        time.sleep(0.1)
-
-    return results
-
-
-
-def bubble_sort(data):
-    """Funkcja implementuje algorytm sortowania bąbelkowego."""
-    n = len(data)
-    for i in range(n):
-        for j in range(0, n - i - 1):
-            if data[j] > data[j + 1]:
-                data[j], data[j + 1] = data[j + 1], data[j]
-    return data
-
-
-def comb_sort(data):
-    """Funkcja implementuje algorytm sortowania grzebieniowego."""
-    n = len(data)
-    gap = n
-    shrink = 1.3
-    sorted_data = False
-
-    while not sorted_data:
-        gap = int(gap / shrink)
-        if gap > 1:
-            sorted_data = False
-        else:
-            gap = 1
-            sorted_data = True
-
-        i = 0
-        while i + gap < n:
-            if data[i] > data[i + gap]:
-                data[i], data[i + gap] = data[i + gap], data[i]
-                sorted_data = False
-            i += 1
-
-    return data
-
-
-def counting_sort(arr, exp):
-    n = len(arr)
-
-    count = [0] * 10
-
-    for i in range(n):
-        index = (arr[i] // exp) % 10
-        count[index] += 1
-
-    for i in range(1, 10):
-        count[i] += count[i - 1]
-
-    result = [0] * n
-
-    for i in range(n - 1, -1, -1):
-        index = (arr[i] // exp) % 10
-        result[count[index] - 1] = arr[i]
-        count[index] -= 1
-
-    return result
-
-
-def radix_sort(arr):
-    max_val = max(arr)
-
-    exp = 1
-    while max_val // exp > 0:
-        arr = counting_sort(arr, exp)
-        exp *= 10
-
-    return arr
-
-def print_progress_bar(iteration, total, prefix='', suffix='', decimals=1, length=50, fill='█'):
-    percent = ("{0:." + str(decimals) + "f}").format(100 * (iteration / float(total)))
-    filled_length = int(length * iteration // total)
-    bar = fill * filled_length + '-' * (length - filled_length)
-    print(f'\r{prefix} |{bar}| {percent}% {suffix}', end='\r')
-    if iteration == total:
-        print()
+            f'Time: {time_elapsed} (s), Average Time: {avg_time} (s) for algorithm: {algorithm} file name: {input_file_name} step: {step}')
+        summary_writer.writerow([algorithm, input_file_name, step, avg_time])
+        print(f'Time: {time_elapsed} (s), Average Time: {avg_time} (s) for algorithm: {algorithm} file name: {input_file_name} step: {step}')
 
 def main():
     config = configparser.ConfigParser()
@@ -216,23 +140,39 @@ def main():
     output_file_names = config.get('data', 'output_files').split(',')
     algorithm_name = config.get('algorithm', 'name').split(',')
     repetitions = int(config.get('experiment', 'repetitions'))
-    numbers_to_read = list(map(int, config.get('limits', 'numbers_to_read').split(',')))
+    step_sizes = list(map(int, config.get('limits', 'step_sizes').split(',')))
+    edge_removal_percentages = list(map(int, config.get('limits', 'edge_removal_percentages').split(',')))
 
-    total_tasks = repetitions
+    # Create a new directory with the current date and time
+    now = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+    output_directory = f'output_{now}'
+    if not os.path.exists(output_directory):
+        os.makedirs(output_directory)
 
-    with open('summary.csv', 'w', newline='') as summary_file:
+    with open(f'{output_directory}/summary.csv', 'w', newline='') as summary_file:
         summary_writer = csv.writer(summary_file)
-        summary_writer.writerow(['Algorithm', 'File Name', 'Limit', 'Average Time'])
+        summary_writer.writerow(['Algorithm', 'File Name', 'Step', 'Average Time'])
 
-        for i in range(len(input_file_names)):
-            data = read_data_file(input_file_names[i], numbers_to_read[i])
+        for input_file_name, algorithm, output_file_name in zip(input_file_names, algorithm_name, output_file_names):
+            for step in step_sizes:
+                for edge_removal_percentage in edge_removal_percentages:
+                    data = read_graph_file(input_file_name)
+                    data = remove_edges(data, edge_removal_percentage)  # Dodajemy usuwanie krawędzi
+                    # Convert the removed edges to a NetworkX graph
+                    graph = nx.Graph()
+                    graph.add_weighted_edges_from(data)
+                    if is_connected(graph):
+                        input_data = data
+                    else:
+                        continue
+                    start_time = time.time()
+                    results = run_algorithm(algorithm, input_data, repetitions)
+                    print(f"results: {results}")
+                    time_elapsed = time.time() - start_time
+                    output_file_suffix = f"__step_{step}_removal_{edge_removal_percentage}"
+                    save_results(results, time_elapsed, output_file_name + output_file_suffix, input_file_name,
+                                 algorithm, step, summary_writer, repetitions, output_directory)
 
-            for algo in algorithm_name:
-                total_time_elapsed = 0
-                results = run_algorithm(algo, data, repetitions, total_tasks)
-
-                total_time_elapsed = sum([result[-1] for result in results])
-                save_results(results, total_time_elapsed, output_file_names[i], input_file_names[i], algo, numbers_to_read[i], summary_writer, repetitions)
 
 if __name__ == '__main__':
     main()

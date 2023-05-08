@@ -1,0 +1,3 @@
+Algorithm,File Name,Step,Average Time
+boruvka,example_graph.csv,100,0.00011301040649414062
+boruvka,example_graph.csv,100,3.2901763916015625e-05
