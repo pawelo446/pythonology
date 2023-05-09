@@ -1,1 +1,0 @@
-Time: 3.2901763916015625e-05 (s), Average Time: 3.2901763916015625e-05 (s) for algorithm: boruvka file name: example_graph.csv step: 100

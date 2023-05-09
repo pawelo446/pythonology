@@ -1,0 +1,8 @@
+Algorithm: dijkstra file name: small_graph.csv
+0,[]
+1,[1]
+2,"[1, 2]"
+3,"[1, 2, 3]"
+4,"[1, 2, 3, 4]"
+Algorithm: dijkstra file name: small_graph.csv
+"{0: inf, 1: 1, 2: 9, 3: 16, 4: 25}","{0: [], 1: [1], 2: [1, 2], 3: [1, 2, 3], 4: [1, 2, 3, 4]}"

@@ -1,0 +1,1 @@
+Time: 5.3882598876953125e-05 (s), Average Time: 5.3882598876953125e-05 (s) for algorithm: dijkstra file name: small_graph.csv step size: 50 edge removal percentages: [0]
