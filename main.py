@@ -1,156 +1,98 @@
 import configparser
-import csv
 
+def build_kmp_table(pattern):
+    pattern_length = len(pattern)
+    kmp_table = [0] * pattern_length
+    j = 0
 
-class Node:
-    def __init__(self, value):
-        self.value = value
-        self.left = None
-        self.right = None
-
-
-class BST:
-    def __init__(self):
-        self.root = None
-
-    def insert(self, value):
-        if self.root is None:
-            self.root = Node(value)
+    for i in range(1, pattern_length):
+        if pattern[i] == pattern[j]:
+            j += 1
+            kmp_table[i] = j
         else:
-            self._insert_recursive(self.root, value)
-
-    def _insert_recursive(self, node, value):
-        if value < node.value:
-            if node.left is None:
-                node.left = Node(value)
+            if j != 0:
+                j = kmp_table[j - 1]
+                i -= 1
             else:
-                self._insert_recursive(node.left, value)
-        else:
-            if node.right is None:
-                node.right = Node(value)
+                kmp_table[i] = 0
+    return kmp_table
+
+
+def kmp_search(text, pattern):
+    kmp_table = build_kmp_table(pattern)
+    text_length = len(text)
+    pattern_length = len(pattern)
+    i = 0
+    j = 0
+    found_indices = []
+
+    while i < text_length:
+        if pattern[j] == text[i]:
+            i += 1
+            j += 1
+        if j == pattern_length:
+            found_indices.append(i - j)
+            j = kmp_table[j - 1]
+        elif i < text_length and pattern[j] != text[i]:
+            if j != 0:
+                j = kmp_table[j - 1]
             else:
-                self._insert_recursive(node.right, value)
-
-    def delete(self, value):
-        self.root = self._delete_recursive(self.root, value)
-
-    def _delete_recursive(self, node, value):
-        if node is None:
-            return node
-        if value < node.value:
-            node.left = self._delete_recursive(node.left, value)
-        elif value > node.value:
-            node.right = self._delete_recursive(node.right, value)
-        else:
-            if node.left is None:
-                return node.right
-            elif node.right is None:
-                return node.left
-            else:
-                min_value = self._find_min_value(node.right)
-                node.value = min_value
-                node.right = self._delete_recursive(node.right, min_value)
-        return node
-
-    def _find_min_value(self, node):
-        current = node
-        while current.left is not None:
-            current = current.left
-        return current.value
-
-    def search(self, value):
-        return self._search_recursive(self.root, value)
-
-    def _search_recursive(self, node, value):
-        if node is None or node.value == value:
-            return node
-        if value < node.value:
-            return self._search_recursive(node.left, value)
-        else:
-            return self._search_recursive(node.right, value)
-
-    def print_tree(self):
-        def height(root):
-            if root is None:
-                return 0
-            return max(height(root.left), height(root.right)) + 1
-
-        def getcol(h):
-            if h == 1:
-                return 1
-            return getcol(h - 1) + getcol(h - 1) + 1
-
-        def printTree(M, root, col, row, height):
-            if root is None:
-                return
-            M[row][col] = root.value
-            printTree(M, root.left, col - pow(2, height - 2), row + 1, height - 1)
-            printTree(M, root.right, col + pow(2, height - 2), row + 1, height - 1)
-
-        h = height(self.root)
-        col = getcol(h)
-        M = [[0 for _ in range(col)] for __ in range(h)]
-        printTree(M, self.root, col // 2, 0, h)
-        for i in M:
-            for j in i:
-                if j == 0:
-                    print(" ", end=" ")
-                else:
-                    print(j, end=" ")
-            print("")
+                i += 1
+    return found_indices
 
 
-def read_numbers_from_csv(file_name):
-    numbers = []
-    with open(file_name, 'r') as csvfile:
-        reader = csv.reader(csvfile)
-        for row in reader:
-            for number in row:
-                numbers.append(int(number))
-    return numbers
+def read_text_from_file(file_name):
+    with open(file_name, 'r') as file:
+        return file.read()
+
+
+def hash(pattern, prime):
+    hashed = 0
+    m = len(pattern)
+    for i in range(m):
+        hashed += ord(pattern[i]) * prime ** (m - i - 1)
+    return hashed
+
+
+def rabin_karp_search(text, pattern):
+    prime = 101
+    pattern_length = len(pattern)
+    text_length = len(text)
+    pattern_hash = hash(pattern, prime)
+    text_hash = hash(text[:pattern_length], prime)
+
+    found_indices = []
+
+    for i in range(0, text_length - pattern_length + 1):
+        if pattern_hash == text_hash and text[i:i + pattern_length] == pattern:
+            found_indices.append(i)
+        if i < text_length - pattern_length:
+            text_hash = (text_hash - ord(text[i]) * prime ** (pattern_length - 1)) * prime + ord(text[i + pattern_length])
+    return found_indices
 
 
 def main():
     config = configparser.ConfigParser()
     config.read('config.ini')
 
-    csv_file_name = config.get('data', 'input_file')
-
-    numbers = read_numbers_from_csv(csv_file_name)
-
-    bst = BST()
-
-    for number in numbers:
-        bst.insert(number)
+    text_file_name = config.get('data', 'input_file')
+    text = read_text_from_file(text_file_name)
 
     while True:
         print("Wybierz operację:")
-        print("1. Dodaj wartość")
-        print("2. Usuń wartość")
-        print("3. Wyszukaj wartość")
-        print("4. Wyświetl drzewo")
-        print("5. Zakończ")
+        print("1. Wyszukaj wzorzec za pomocą Rabina-Karpa")
+        print("2. Zakończ")
 
         choice = int(input("Wybór: "))
-
-        if choice == 1:
-            value = int(input("Podaj wartość do dodania: "))
-            bst.insert(value)
-            print("Wartość dodana.")
-        elif choice == 2:
-            value = int(input("Podaj wartość do usunięcia: "))
-            bst.delete(value)
-            print("Wartość usunięta.")
-        elif choice == 3:
-            value = int(input("Podaj wartość do wyszukania: "))
-            if bst.search(value):
-                print("Wartość znaleziona.")
+        if choice in [1, 2]:
+            pattern = input("Podaj wzorzec do wyszukania: ")
+            if choice == 1:
+                found_indices = kmp_search(text, pattern)
             else:
-                print("Wartość nie znaleziona.")
-        elif choice == 4:
-            print("Drzewo:")
-            bst.print_tree()
-        elif choice == 5:
+                found_indices = rabin_karp_search(text, pattern)
+            print(f"Wzorzec znaleziony {len(found_indices)} razy.")
+            print(f"Wzorzec znaleziony na indeksach: {found_indices}")
+        elif choice == 3:
             break
         else:
             print("Nieprawidłowy wybór. Spróbuj ponownie.")
@@ -158,3 +100,4 @@ def main():
 
 if __name__ == '__main__':
     main()
+
