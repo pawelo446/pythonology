@@ -1,160 +1,238 @@
 import configparser
 import csv
+import time
+import threading
 
+def merge(low, mid, high):
+    left = a[low:mid+1]
+    right = a[mid+1:high+1]
 
-class Node:
-    def __init__(self, value):
-        self.value = value
-        self.left = None
-        self.right = None
+    n1 = len(left)
+    n2 = len(right)
+    i = j = 0
+    k = low
 
-
-class BST:
-    def __init__(self):
-        self.root = None
-
-    def insert(self, value):
-        if self.root is None:
-            self.root = Node(value)
+    while i < n1 and j < n2:
+        if left[i] <= right[j]:
+            a[k] = left[i]
+            i += 1
         else:
-            self._insert_recursive(self.root, value)
+            a[k] = right[j]
+            j += 1
+        k += 1
 
-    def _insert_recursive(self, node, value):
-        if value < node.value:
-            if node.left is None:
-                node.left = Node(value)
-            else:
-                self._insert_recursive(node.left, value)
+    while i < n1:
+        a[k] = left[i]
+        i += 1
+        k += 1
+
+    while j < n2:
+        a[k] = right[j]
+        j += 1
+        k += 1
+
+def merge_sort(low, high):
+    if low < high:
+        mid = low + (high - low) // 2
+
+        merge_sort(low, mid)
+        merge_sort(mid + 1, high)
+
+        merge(low, mid, high)
+
+def merge_sort_threaded(arr):
+    global a
+    a = arr
+
+    max_elements = len(a)
+    global part
+    part = 0
+    thread_max = 5
+
+    for i in range(thread_max):
+        t = threading.Thread(target=merge_sort, args=(part * (max_elements // 4), (part + 1) * (max_elements // 4) - 1))
+        part += 1
+        t.start()
+
+    for i in range(thread_max):
+        t.join()
+
+    merge(0, (max_elements // 2 - 1) // 2, max_elements // 2 - 1)
+    merge(max_elements // 2, max_elements // 2 + (max_elements - 1 - max_elements // 2) // 2, max_elements - 1)
+    merge(0, (max_elements - 1) // 2, max_elements - 1)
+
+    return a
+
+def read_data_file(file_name, limit):
+    """Funkcja odczytuje dane z pliku i zwraca je w odpowiednim formacie."""
+    extension = file_name.split('.')[-1]
+
+    if extension == 'csv':
+        with open(file_name, newline='') as csvfile:
+            data = [list(map(int, row)) for row in csv.reader(csvfile)]
+    elif extension == 'txt':
+        with open(file_name) as txtfile:
+            data = [list(map(int, row.split(', '))) for row in txtfile]
+    else:
+        raise ValueError("Nieobsługiwany format pliku wejściowego.")
+    data = data[0]
+    data = data[0:limit]
+    return data
+
+
+def save_results(results, time_elapsed, output_file_name, intput_file_name, algorithm, limit, summary_writer, repetitions):
+    """Funkcja zapisuje wyniki i czas wykonania dla każdej instancji do osobnych plików."""
+    sorted_data = [result[:-1] for result in results]
+    times = [result[-1] for result in results]
+
+    sorted_output_file_name = output_file_name + '_sorted.csv'
+    with open(sorted_output_file_name, 'w', newline='') as csvfile:
+        writer = csv.writer(csvfile)
+        writer.writerow([f'Algorithm: {algorithm} file name: {intput_file_name}'])
+        writer.writerows(sorted_data)
+
+    time_output_file_name = output_file_name + '_time.csv'
+    with open(time_output_file_name, 'w', newline='') as csvfile:
+        writer = csv.writer(csvfile)
+        writer.writerow([f'Algorithm: {algorithm} file name: {intput_file_name}'])
+        for time in times:
+            writer.writerow([time])
+
+    time_elapsed_output_file_name = output_file_name + '_time_elapsed.txt'
+    with open(time_elapsed_output_file_name, 'w') as txtfile:
+        avg_time = time_elapsed / repetitions
+        txtfile.write(
+            f'Time: {time_elapsed} (s), Average Time: {avg_time} (s) for algorithm: {algorithm} file name: {intput_file_name} limit: {limit}')
+        summary_writer.writerow([algorithm, intput_file_name, limit, avg_time])
+
+
+def run_algorithm(algorithm_name, data, repetitions, total_tasks):
+    """Funkcja wykonuje badany algorytm i zwraca wyniki."""
+    results = []
+    completed_tasks = 0
+    for i in range(repetitions):
+        start_time = time.time()
+        if algorithm_name == 'bubble_sort':
+            sorted_data = bubble_sort(data)
+        elif algorithm_name == 'comb_sort':
+            sorted_data = comb_sort(data)
+        elif algorithm_name == 'radix_sort':
+            sorted_data = radix_sort(data)
+        elif algorithm_name == 'merge_sort_multithreaded':
+            sorted_data = merge_sort_threaded(data)
         else:
-            if node.right is None:
-                node.right = Node(value)
-            else:
-                self._insert_recursive(node.right, value)
+            raise ValueError("Nieobsługiwany algorytm.")
+        time_elapsed = time.time() - start_time
+        results.append(sorted_data + [time_elapsed])
 
-    def delete(self, value):
-        self.root = self._delete_recursive(self.root, value)
+        completed_tasks += 1
+        print_progress_bar(completed_tasks, total_tasks, prefix=f'Processing {algorithm_name}', suffix='Complete', length=50)
+        time.sleep(0.1)
 
-    def _delete_recursive(self, node, value):
-        if node is None:
-            return node
-        if value < node.value:
-            node.left = self._delete_recursive(node.left, value)
-        elif value > node.value:
-            node.right = self._delete_recursive(node.right, value)
+    return results
+
+
+
+def bubble_sort(data):
+    """Funkcja implementuje algorytm sortowania bąbelkowego."""
+    n = len(data)
+    for i in range(n):
+        for j in range(0, n - i - 1):
+            if data[j] > data[j + 1]:
+                data[j], data[j + 1] = data[j + 1], data[j]
+    return data
+
+
+def comb_sort(data):
+    """Funkcja implementuje algorytm sortowania grzebieniowego."""
+    n = len(data)
+    gap = n
+    shrink = 1.3
+    sorted_data = False
+
+    while not sorted_data:
+        gap = int(gap / shrink)
+        if gap > 1:
+            sorted_data = False
         else:
-            if node.left is None:
-                return node.right
-            elif node.right is None:
-                return node.left
-            else:
-                min_value = self._find_min_value(node.right)
-                node.value = min_value
-                node.right = self._delete_recursive(node.right, min_value)
-        return node
+            gap = 1
+            sorted_data = True
 
-    def _find_min_value(self, node):
-        current = node
-        while current.left is not None:
-            current = current.left
-        return current.value
+        i = 0
+        while i + gap < n:
+            if data[i] > data[i + gap]:
+                data[i], data[i + gap] = data[i + gap], data[i]
+                sorted_data = False
+            i += 1
 
-    def search(self, value):
-        return self._search_recursive(self.root, value)
-
-    def _search_recursive(self, node, value):
-        if node is None or node.value == value:
-            return node
-        if value < node.value:
-            return self._search_recursive(node.left, value)
-        else:
-            return self._search_recursive(node.right, value)
-
-    def print_tree(self):
-        def height(root):
-            if root is None:
-                return 0
-            return max(height(root.left), height(root.right)) + 1
-
-        def getcol(h):
-            if h == 1:
-                return 1
-            return getcol(h - 1) + getcol(h - 1) + 1
-
-        def printTree(M, root, col, row, height):
-            if root is None:
-                return
-            M[row][col] = root.value
-            printTree(M, root.left, col - pow(2, height - 2), row + 1, height - 1)
-            printTree(M, root.right, col + pow(2, height - 2), row + 1, height - 1)
-
-        h = height(self.root)
-        col = getcol(h)
-        M = [[0 for _ in range(col)] for __ in range(h)]
-        printTree(M, self.root, col // 2, 0, h)
-        for i in M:
-            for j in i:
-                if j == 0:
-                    print(" ", end=" ")
-                else:
-                    print(j, end=" ")
-            print("")
+    return data
 
 
-def read_numbers_from_csv(file_name):
-    numbers = []
-    with open(file_name, 'r') as csvfile:
-        reader = csv.reader(csvfile)
-        for row in reader:
-            for number in row:
-                numbers.append(int(number))
-    return numbers
+def counting_sort(arr, exp):
+    n = len(arr)
 
+    count = [0] * 10
+
+    for i in range(n):
+        index = (arr[i] // exp) % 10
+        count[index] += 1
+
+    for i in range(1, 10):
+        count[i] += count[i - 1]
+
+    result = [0] * n
+
+    for i in range(n - 1, -1, -1):
+        index = (arr[i] // exp) % 10
+        result[count[index] - 1] = arr[i]
+        count[index] -= 1
+
+    return result
+
+
+def radix_sort(arr):
+    max_val = max(arr)
+
+    exp = 1
+    while max_val // exp > 0:
+        arr = counting_sort(arr, exp)
+        exp *= 10
+
+    return arr
+
+def print_progress_bar(iteration, total, prefix='', suffix='', decimals=1, length=50, fill='█'):
+    percent = ("{0:." + str(decimals) + "f}").format(100 * (iteration / float(total)))
+    filled_length = int(length * iteration // total)
+    bar = fill * filled_length + '-' * (length - filled_length)
+    print(f'\r{prefix} |{bar}| {percent}% {suffix}', end='\r')
+    if iteration == total:
+        print()
 
 def main():
     config = configparser.ConfigParser()
     config.read('config.ini')
 
-    csv_file_name = config.get('data', 'input_file')
+    input_file_names = config.get('data', 'input_files').split(',')
+    output_file_names = config.get('data', 'output_files').split(',')
+    algorithm_name = config.get('algorithm', 'name').split(',')
+    repetitions = int(config.get('experiment', 'repetitions'))
+    numbers_to_read = list(map(int, config.get('limits', 'numbers_to_read').split(',')))
 
-    numbers = read_numbers_from_csv(csv_file_name)
+    total_tasks = repetitions
 
-    bst = BST()
+    with open('summary.csv', 'w', newline='') as summary_file:
+        summary_writer = csv.writer(summary_file)
+        summary_writer.writerow(['Algorithm', 'File Name', 'Limit', 'Average Time'])
 
-    for number in numbers:
-        bst.insert(number)
+        for i in range(len(input_file_names)):
+            data = read_data_file(input_file_names[i], numbers_to_read[i])
 
-    while True:
-        print("Wybierz operację:")
-        print("1. Dodaj wartość")
-        print("2. Usuń wartość")
-        print("3. Wyszukaj wartość")
-        print("4. Wyświetl drzewo")
-        print("5. Zakończ")
+            for algo in algorithm_name:
+                total_time_elapsed = 0
+                results = run_algorithm(algo, data, repetitions, total_tasks)
 
-        choice = int(input("Wybór: "))
-
-        if choice == 1:
-            value = int(input("Podaj wartość do dodania: "))
-            bst.insert(value)
-            print("Wartość dodana.")
-        elif choice == 2:
-            value = int(input("Podaj wartość do usunięcia: "))
-            bst.delete(value)
-            print("Wartość usunięta.")
-        elif choice == 3:
-            value = int(input("Podaj wartość do wyszukania: "))
-            if bst.search(value):
-                print("Wartość znaleziona.")
-            else:
-                print("Wartość nie znaleziona.")
-        elif choice == 4:
-            print("Drzewo:")
-            bst.print_tree()
-        elif choice == 5:
-            break
-        else:
-            print("Nieprawidłowy wybór. Spróbuj ponownie.")
-
+                total_time_elapsed = sum([result[-1] for result in results])
+                save_results(results, total_time_elapsed, output_file_names[i], input_file_names[i], algo, numbers_to_read[i], summary_writer, repetitions)
 
 if __name__ == '__main__':
     main()
